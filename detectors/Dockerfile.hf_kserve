@@ -1,0 +1,31 @@
+FROM registry.access.redhat.com/ubi9/ubi-minimal as base
+
+RUN microdnf update -y && \
+    microdnf install -y --nodocs \
+        python-pip python-devel && \
+    pip install --upgrade --no-cache-dir pip wheel && \
+    microdnf clean all
+
+FROM base as builder
+
+# Install only the dependencies needed for KServe detector
+COPY ./common/requirements.txt ./common-requirements.txt
+RUN pip install --no-cache-dir -r common-requirements.txt
+
+# Install KServe-specific dependencies
+RUN pip install --no-cache-dir \
+    fastapi \
+    uvicorn \
+    httpx \
+    prometheus-fastapi-instrumentator
+
+FROM builder
+
+WORKDIR /app
+
+COPY ./common /common
+COPY ./huggingface/app_kserve.py /app/app.py
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app:app", "--workers", "1", "--host", "0.0.0.0", "--port", "8000"]

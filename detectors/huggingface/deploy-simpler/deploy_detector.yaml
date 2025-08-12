@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kserve-hf-detector
+  labels:
+    app: kserve-hf-detector
+    component: detector-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kserve-hf-detector
+  template:
+    metadata:
+      labels:
+        app: kserve-hf-detector
+        component: detector-api
+    spec:
+      serviceAccountName: user-one
+      containers:
+      - name: detector-api
+        image: quay.io/rh-ee-mmisiura/kserve-hf-detector:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: KSERVE_INTERNAL_URL
+          value: "https://huggingface-hap-detector-predictor.test.svc.cluster.local:8443/v1/models/hap:predict"
+        - name: KSERVE_EXTERNAL_URL
+          value: "https://huggingface-hap-detector-external-test.apps.rosa.trustyai-maciej.7fpc.p3.openshiftapps.com/v1/models/hap:predict"
+        - name: PREFER_INTERNAL
+          value: "true"
+        - name: SAFE_LABELS
+          value: "[0]"
+        - name: TIMEOUT_SECONDS
+          value: "30"
+        - name: MAX_RETRIES
+          value: "3"
+        - name: SSL_VERIFY
+          value: "true"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kserve-hf-detector
+  labels:
+    app: kserve-hf-detector
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: kserve-hf-detector
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: kserve-hf-detector
+  labels:
+    app: kserve-hf-detector
+  annotations:
+    haproxy.router.openshift.io/auth-type: "oauth"
+spec:
+  to:
+    kind: Service
+    name: kserve-hf-detector
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

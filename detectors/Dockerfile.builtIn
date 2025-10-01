@@ -20,6 +20,7 @@ WORKDIR /app
 ARG CACHEBUST=1
 RUN echo "$CACHEBUST"
 COPY ./common /app/detectors/common
+COPY ./chunkers /app/chunkers
 COPY ./built_in/* /app
 
 EXPOSE 8080

@@ -21,6 +21,35 @@ from detectors.common.scheme import (
 import gc
 
 
+def _parse_threshold_env():
+    """Parse THRESHOLD env var. Returns float or 0.5 as default."""
+    raw = os.environ.get("THRESHOLD")
+    if raw is not None:
+        try:
+            val = float(raw)
+            logger.info(f"THRESHOLD env var: {val}")
+            return val
+        except ValueError:
+            logger.warning(f"Could not parse THRESHOLD env var: {raw}. Defaulting to 0.5.")
+    return 0.5
+
+
+def _parse_label_thresholds_env():
+    """Parse LABEL_THRESHOLDS env var. Returns dict mapping label names to float thresholds."""
+    raw = os.environ.get("LABEL_THRESHOLDS")
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict) and all(
+                isinstance(k, str) and isinstance(v, (int, float)) for k, v in parsed.items()
+            ):
+                logger.info(f"LABEL_THRESHOLDS env var: {parsed}")
+                return parsed
+        except Exception as e:
+            logger.warning(f"Could not parse LABEL_THRESHOLDS env var: {e}. Defaulting to empty.")
+    return {}
+
+
 def _parse_safe_labels_env(default=None):
     if default is None:
         default = [0]
@@ -61,6 +90,8 @@ class Detector(InstrumentedDetector):
         self.cuda_device = None
         self.model_name = "unknown"
         self.safe_labels = _parse_safe_labels_env()
+        self.default_threshold = _parse_threshold_env()
+        self.default_label_thresholds = _parse_label_thresholds_env()
 
         model_files_path = os.environ.get("MODEL_DIR")
         if not model_files_path:
@@ -258,7 +289,9 @@ class Detector(InstrumentedDetector):
     def process_sequence_classification(self, text, detector_params=None, threshold=None):
         detector_params = detector_params or {}
         if threshold is None:
-            threshold = detector_params.get("threshold", 0.5)
+            threshold = detector_params.get("threshold", self.default_threshold)
+        # Per-label thresholds: request overrides env defaults
+        label_thresholds = {**self.default_label_thresholds, **detector_params.get("label_thresholds", {})}
         # Merge safe_labels from env and request
         request_safe_labels = set(detector_params.get("safe_labels", []))
         all_safe_labels = set(self.safe_labels) | request_safe_labels
@@ -278,9 +311,10 @@ class Detector(InstrumentedDetector):
             probabilities = torch.softmax(logits, dim=1).detach().cpu().numpy()[0]
             for idx, prob in enumerate(probabilities):
                 label = self.model.config.id2label[idx]
+                effective_threshold = label_thresholds.get(label, threshold)
                 # Exclude by index or label name
                 if (
-                        prob >= threshold
+                        prob >= effective_threshold
                         and idx not in all_safe_labels
                         and label not in all_safe_labels
                 ):
@@ -301,7 +335,9 @@ class Detector(InstrumentedDetector):
     def process_token_classification(self, text, detector_params=None, threshold=None):
         detector_params = detector_params or {}
         if threshold is None:
-            threshold = detector_params.get("threshold", 0.5)
+            threshold = detector_params.get("threshold", self.default_threshold)
+        # Per-label thresholds: request overrides env defaults
+        label_thresholds = {**self.default_label_thresholds, **detector_params.get("label_thresholds", {})}
         # Merge safe_labels from env and request
         request_safe_labels = set(detector_params.get("safe_labels", []))
         all_safe_labels = set(self.safe_labels) | request_safe_labels
@@ -338,8 +374,9 @@ class Detector(InstrumentedDetector):
                 for label_idx, prob in enumerate(token_probs):
                     label = self.model.config.id2label[label_idx]
                     prob = float(prob)
+                    effective_threshold = label_thresholds.get(label, threshold)
                     if (
-                        prob >= threshold
+                        prob >= effective_threshold
                         and label_idx not in all_safe_labels
                         and label not in all_safe_labels
                         and prob > best_prob

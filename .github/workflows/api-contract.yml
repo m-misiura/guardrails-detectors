@@ -1,0 +1,55 @@
+name: API contract
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Downstream-only onboarding: retain this workflow and .rhoai/ during upstream syncs.
+# @latest resolved to v2.2.0 (d63fe27957117fd99161a693c7fdef9e20efb9d9)
+# on 2026-11-17. Upgrade policy:
+# https://github.com/red-hat-data-services/api-contract-tests/blob/main/docs/releasing.md
+# Baseline: newest GA tag v0.3.0+rhaiv.4 in opendatahub-io/guardrails-detectors,
+# verified with git ls-remote on 2026-11-17:
+# 3c39a53d7fe278242bdb9d6e22b3e24c4bddb177
+# Moving this baseline requires approval from someone other than the author.
+
+jobs:
+  generated-openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned schema-generation dependencies
+        run: >-
+          python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu
+          -r scripts/openapi-requirements.txt './detectors[huggingface]'
+      - name: Enforce generated contract freshness
+        run: python scripts/generate_openapi.py --check
+
+  api-contract:
+    needs: generated-openapi
+    strategy:
+      fail-fast: false
+      matrix:
+        contract-id: [huggingface-detector-v1]
+    uses: red-hat-data-services/api-contract-tests/.github/workflows/provider-openapi-check.yml@latest
+    with:
+      contract-set: .rhoai/contracts.yaml
+      contract-id: ${{ matrix.contract-id }}
+      baseline-refs: 3c39a53d7fe278242bdb9d6e22b3e24c4bddb177
+      oasdiff-version: "1.33.0"
+      yq-version: "4.45.1"
+      mode: enforce
+
+  api-contract-coverage:
+    uses: red-hat-data-services/api-contract-tests/.github/workflows/provider-coverage-check.yml@latest
+    with:
+      contract-set: .rhoai/contracts.yaml
+      baseline-refs: 3c39a53d7fe278242bdb9d6e22b3e24c4bddb177
+      yq-version: "4.45.1"
+      mode: enforce

@@ -1,0 +1,18 @@
+apiVersion: contracts.rhoai.io/v1alpha1
+kind: ContractSet
+metadata:
+  name: guardrails-detectors
+spec:
+  exclusions: []
+  contracts:
+    - id: huggingface-detector-v1
+      type: openapi
+      declaredArtifact: api/openapi/huggingface.json
+      matchPath: '^/api/v1/text/contents$'
+      generator:
+        adapter: openapi.static
+        source: api/openapi/huggingface.json
+      policy:
+        oasdiffVersion: "1.33.0"
+        yqVersion: "4.45.1"
+        flattenAllOf: true

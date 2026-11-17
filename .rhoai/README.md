@@ -41,6 +41,9 @@ Commit the regenerated document with every API change.
 changing dependencies using the
 `uv pip compile` command recorded at the top of that file, then regenerate.
 CI installs both the pins and the project so incompatible dependency pins fail.
+Keep index options out of the generated requirements file: pip's `--index-url`
+directive there resets the index list and discards the CPU wheel index supplied
+by the installation command. Do not add `--emit-index-url` when regenerating.
 
 The central `openapi.static` adapter reads the committed artifact. The
 separate `generated-openapi` job enforces freshness before compatibility checks;

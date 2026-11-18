@@ -30,6 +30,16 @@ spec:
           memory: 6Gi
         limits:
           memory: 6Gi
+    - pipelineTaskName: rpms-signature-scan
+      stepSpecs:
+        - name: rpms-signature-scan
+          computeResources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
   params:
   - name: git-url
     value: '{{source_url}}'

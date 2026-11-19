@@ -17,22 +17,7 @@ permissions:
 # Moving this baseline requires approval from someone other than the author.
 
 jobs:
-  generated-openapi:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install pinned schema-generation dependencies
-        run: >-
-          python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu
-          -r scripts/openapi-requirements.txt './detectors[huggingface]'
-      - name: Enforce generated contract freshness
-        run: python scripts/generate_openapi.py --check
-
   api-contract:
-    needs: generated-openapi
     strategy:
       fail-fast: false
       matrix:

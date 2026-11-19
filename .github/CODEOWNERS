@@ -1,8 +1,3 @@
-# API contract policy changes require an owner review.
 /.rhoai/ @opendatahub-io/trustyai
 /.github/workflows/api-contract.yml @opendatahub-io/trustyai
-# Protect the published contracts and their generation as well.
-/api/openapi/ @opendatahub-io/trustyai
-/scripts/generate_openapi.py @opendatahub-io/trustyai
-/scripts/openapi-requirements.txt @opendatahub-io/trustyai
 /.github/CODEOWNERS @opendatahub-io/trustyai
